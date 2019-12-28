@@ -29,8 +29,6 @@ FlvTag::FlvTagType FlvTag::parseFlvTagType(const uint8_t* data)
 
 void FlvTag::encode(std::string& encodedData, bool includePrevTag) const
 {
-    encodedData.clear();
-
     uint8_t buf[11] = { 0 };
     
     buf[0] = (uint8_t)m_tagType;
@@ -56,7 +54,7 @@ void FlvTag::encode(std::string& encodedData, bool includePrevTag) const
     if(includePrevTag)
     {
         uint8_t prevTagBuf[4] = { 0 };
-        uint32_t prevTagSize = encodedData.size();
+        uint32_t prevTagSize = FLV_TAG_HEADER_SIZE + m_dataSize;
 
         prevTagBuf[0] = (prevTagSize & 0xFF000000) >> 24;
         prevTagBuf[1] = (prevTagSize & 0x00FF0000) >> 16;
