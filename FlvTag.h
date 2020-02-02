@@ -33,6 +33,9 @@ public:
     void setTagTimeStamp(uint32_t ts) { m_timeStamp = ts; }
     uint32_t getTagTimeStamp() const { return m_timeStamp; }
 
+    uint32_t getTagSize(bool includePrevTag = true) const;
+    FlvTagType getTagType() const { return m_tagType; }
+
     /*
     * 编码成FlvTag字符串
     * @param includePrevTag 表示编码的内容是否包含FlvTag后的4字节PrevTagSize
@@ -62,6 +65,18 @@ private:
     uint32_t m_timeStamp;
 };
 
+class GeneralFlvTag : public FlvTag
+{
+/*
+    透传用的FlvTag，不对FlvTag的数据区内容进行解析，仅储存
+*/
+private:
+    void encodeTagData(std::string& encodedData) const;
+    void decodeTagData(const uint8_t* data, uint32_t dataSize);
+private:
+    std::string m_flvData;
+};
+
 class AVCVideoFlvTag : public FlvTag
 {
 public:
@@ -82,10 +97,13 @@ public:
     void setIsIFrame(bool iframe) { m_isIFrame = iframe; }
     bool isIFrame() const { return m_isIFrame; }
 
+    void setCts(uint32_t cts) { m_cts = cts; }
+    uint32_t getCts() const { return m_cts; }
+
     void setRawData(const std::string& rawData) { m_rawData = rawData; }
     const std::string& getRawData() const { return m_rawData; }
 private:
-    void encodeTagData(std::string& encodedData);
+    void encodeTagData(std::string& encodedData) const;
     void decodeTagData(const uint8_t* data, uint32_t dataSize);
 private:
     bool m_isIFrame;
@@ -144,7 +162,7 @@ public:
     void setRawData(const std::string& rawData) { m_rawData = rawData; }
     const std::string& getRawData() const { return m_rawData; }
 private:
-    void encodeTagData(std::string& encodedData);
+    void encodeTagData(std::string& encodedData) const;
     void decodeTagData(const uint8_t* data, uint32_t dataSize);
 private:
     AudioFormat m_audioFmt;

@@ -10,9 +10,9 @@ bool FlvTag::checkCanDecode(const uint8_t* data, uint32_t size, bool includePrev
     }
     
     uint32_t tagSize = 0;
-    tagSize |= (data[1] << 16) & 0x00FF0000;
-    tagSize |= (data[2] << 8) & 0x0000FF00;
-    tagSize |= (data[3]) & 0x000000FF;
+    tagSize += (data[1] << 16) & 0x00FF0000;
+    tagSize += (data[2] << 8) & 0x0000FF00;
+    tagSize += (data[3]) & 0x000000FF;
 
     tagSize += FLV_TAG_HEADER_SIZE;
 
@@ -25,6 +25,14 @@ bool FlvTag::checkCanDecode(const uint8_t* data, uint32_t size, bool includePrev
 FlvTag::FlvTagType FlvTag::parseFlvTagType(const uint8_t* data)
 {
     return (FlvTag::FlvTagType)(data[0]);
+}
+
+uint32_t FlvTag::getTagSize(bool includePrevTag) const
+{
+    uint32_t tagSize = m_dataSize + FlvTag::FLV_TAG_HEADER_SIZE;
+    tagSize += (includePrevTag ? 4 : 0);
+
+    return tagSize;
 }
 
 void FlvTag::encode(std::string& encodedData, bool includePrevTag) const
@@ -65,7 +73,7 @@ void FlvTag::encode(std::string& encodedData, bool includePrevTag) const
     }
 }
 
-int FlvTag::decode(const uint8_t* data, uint32_t size, bool includePrevTag = true)
+int FlvTag::decode(const uint8_t* data, uint32_t size, bool includePrevTag)
 {
     if(!checkCanDecode(data, size, includePrevTag))
         return -1;
@@ -83,7 +91,7 @@ int FlvTag::decode(const uint8_t* data, uint32_t size, bool includePrevTag = tru
     m_timeStamp |= (data[6]) & 0x000000FF;
     m_timeStamp |= (data[7] << 24) & 0xFF000000;
 
-    decodeTagData(data + FLV_TAG_HEADER_SIZE, size - FLV_TAG_HEADER_SIZE);
+    decodeTagData(data + FLV_TAG_HEADER_SIZE, m_dataSize);
 
     uint32_t parsedSize = FLV_TAG_HEADER_SIZE + m_dataSize;
     if(includePrevTag)
@@ -92,11 +100,21 @@ int FlvTag::decode(const uint8_t* data, uint32_t size, bool includePrevTag = tru
     return parsedSize;
 }
 
+void GeneralFlvTag::encodeTagData(std::string& encodedData) const
+{
+    encodedData.append(m_flvData);
+}
+
+void GeneralFlvTag::decodeTagData(const uint8_t* data, uint32_t dataSize)
+{
+    m_flvData.assign((const char*)data, dataSize);
+}
+
 AVCVideoFlvTag::AVCVideoFlvTag() : m_avcPktType(AVC_NALU), m_cts(0)
 {
 }
 
-void AVCVideoFlvTag::encodeTagData(std::string& encodedData)
+void AVCVideoFlvTag::encodeTagData(std::string& encodedData) const
 {
     uint8_t buf[5] = { 0 };
 
@@ -131,7 +149,7 @@ AudioFlvTag::AudioFlvTag()
 {
 }
 
-void AudioFlvTag::encodeTagData(std::string& encodedData)
+void AudioFlvTag::encodeTagData(std::string& encodedData) const
 {
     uint8_t audioHeader = 0;
 
