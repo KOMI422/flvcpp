@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <string>
+#include <map>
 
 class FlvTag
 {
@@ -27,8 +28,8 @@ public:
     void setAsAudioTag() { m_tagType = AUDIO; }
     bool isAudioTag() const { return m_tagType == AUDIO; }
     
-    void setAsScriptDataType() { m_tagType = SCRIPT_DATA; }
-    bool isScriptDataType() const { return m_tagType == SCRIPT_DATA; }
+    void setAsScriptDataTag() { m_tagType = SCRIPT_DATA; }
+    bool isScriptDataTag() const { return m_tagType == SCRIPT_DATA; }
 
     void setTagTimeStamp(uint32_t ts) { m_timeStamp = ts; }
     uint32_t getTagTimeStamp() const { return m_timeStamp; }
@@ -83,7 +84,8 @@ public:
     enum AVCPacketType
     {
         AVC_HEADER = 0,
-        AVC_NALU = 1
+        AVC_NALU = 1,
+        AVC_END = 2,
     };
 public:
     AVCVideoFlvTag();
@@ -93,6 +95,9 @@ public:
 
     void setAsAvcNalu() { m_avcPktType = AVC_NALU; }
     bool isAvcNalu() const { return m_avcPktType == AVC_NALU; }
+
+    void setAsAvcEnd() { m_avcPktType = AVC_END; }
+    bool isAvcEnd() const { return m_avcPktType == AVC_END; }
 
     void setIsIFrame(bool iframe) { m_isIFrame = iframe; }
     bool isIFrame() const { return m_isIFrame; }
@@ -112,7 +117,7 @@ private:
     std::string m_rawData;
 };
 
-class AudioFlvTag : public FlvTag
+class AACAudioFlvTag : public FlvTag
 {
 public:
     enum AudioFormat
@@ -122,6 +127,12 @@ public:
         LPCM_LITTLE_ENDIAN = 3,
         AAC = 10,
         SPEEX = 11
+    };
+
+    enum AACPacketType
+    {
+        AAC_Sequence_Header = 0,
+        AAC_Raw = 1
     };
 
     enum SampleRate
@@ -145,7 +156,7 @@ public:
     };
 
 public:
-    AudioFlvTag();
+    AACAudioFlvTag();
 
     void setAudioFormat(AudioFormat fmt) { m_audioFmt = fmt; }
     AudioFormat getAudioFormat() const { return m_audioFmt; }
@@ -161,6 +172,10 @@ public:
 
     void setRawData(const std::string& rawData) { m_rawData = rawData; }
     const std::string& getRawData() const { return m_rawData; }
+
+    void setPacketType(AACPacketType type) { m_packetType = type; }
+    AACPacketType getPacketType() const { return m_packetType; }
+    bool isAACHeader() const { return (m_packetType == AAC_Sequence_Header); }
 private:
     void encodeTagData(std::string& encodedData) const;
     void decodeTagData(const uint8_t* data, uint32_t dataSize);
@@ -169,7 +184,60 @@ private:
     SampleRate m_sampleRate;
     SampleBit m_sampleBit;
     SoundChannel m_channel;
+
+    AACPacketType m_packetType;
     std::string m_rawData;
+};
+
+class ScriptData
+{
+public:
+    enum ScriptDataType
+    {
+        SCRIPT_NUMBER = 0,
+        SCRIPT_BOOLEAN = 1,
+        SCRIPT_STRING = 2,
+        SCRIPT_ARRAY = 8,
+    };
+public:
+    ScriptData();
+
+private:
+    ScriptDataType m_dataType;
+    double m_numberVal;
+    bool m_boolVal;
+    std::string m_stringVal;
+};
+
+class ScriptDataTag : public FlvTag
+{
+public:
+    enum ScriptDataType
+    {
+        SCRIPT_NUMBER = 0,
+        SCRIPT_BOOLEAN = 1,
+        SCRIPT_STRING = 2,
+        SCRIPT_ARRAY = 8,
+    };
+public:
+    ScriptDataTag() {}
+    virtual ~ScriptDataTag() {}
+
+    const std::string& getScriptDataName() const { return m_scriptDataName; }
+    void setScriptDataName(const std::string& name) { m_scriptDataName = name; }
+    std::string getPropertyValue(const std::string& propertyName, std::string defaultValue = "");
+    void addPropertyValue(const std::string& name, const std::string& value);
+private:
+    void encodeTagData(std::string& encodedData) const;
+    void decodeTagData(const uint8_t* data, uint32_t dataSize);
+
+    int32_t decodeScriptString(const uint8_t* data, uint32_t size, std::string& retString);
+    int32_t decodeScriptNumber(const uint8_t* data, uint32_t size, std::string& retString);
+    int32_t decodeScriptBoolean(const uint8_t* data, uint32_t size, std::string& retString);
+    int32_t decodeScriptProperty(const uint8_t* data, uint32_t size, std::map<std::string, std::string>& properties);
+private:
+    std::string m_scriptDataName;
+    std::map<std::string, std::string> m_propertyValueMap;
 };
 
 #endif

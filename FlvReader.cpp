@@ -58,7 +58,11 @@ std::shared_ptr<FlvTag> FlvReader::parseFlvTag(const uint8_t* data, uint32_t siz
         break;
         
         case FlvTag::AUDIO:
-        pRetTag = std::shared_ptr<AudioFlvTag>(new AudioFlvTag());
+        pRetTag = std::shared_ptr<AACAudioFlvTag>(new AACAudioFlvTag());
+        break;
+
+        case FlvTag::SCRIPT_DATA:
+        pRetTag = std::shared_ptr<ScriptDataTag>(new ScriptDataTag());
         break;
 
         default:

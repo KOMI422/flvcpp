@@ -144,12 +144,12 @@ void AVCVideoFlvTag::decodeTagData(const uint8_t* data, uint32_t dataSize)
     m_rawData.assign((char*)(data + 5), dataSize - 5);
 }
 
-AudioFlvTag::AudioFlvTag()
+AACAudioFlvTag::AACAudioFlvTag()
     : m_audioFmt(AAC), m_sampleRate(_440000HZ), m_sampleBit(SND_16BIT), m_channel(STEREO)
 {
 }
 
-void AudioFlvTag::encodeTagData(std::string& encodedData) const
+void AACAudioFlvTag::encodeTagData(std::string& encodedData) const
 {
     uint8_t audioHeader = 0;
 
@@ -162,13 +162,150 @@ void AudioFlvTag::encodeTagData(std::string& encodedData) const
     encodedData.append(m_rawData);
 }
 
-void AudioFlvTag::decodeTagData(const uint8_t* data, uint32_t dataSize)
+void AACAudioFlvTag::decodeTagData(const uint8_t* data, uint32_t dataSize)
 {
     m_audioFmt = (AudioFormat)((data[0] & 0xF0) >> 4);
     m_sampleRate = (SampleRate)(data[0] & 0x0C);
     m_sampleBit = (SampleBit)(data[0] & 0x02);
     m_channel = (SoundChannel)(data[0] & 0x01);
 
+    m_packetType = (AACPacketType)(data[1]);
+
     m_rawData.clear();
-    m_rawData.assign((char*)(data + 1), dataSize - 1);
+    m_rawData.assign((char*)(data + 2), dataSize - 2);
+}
+
+std::string ScriptDataTag::getPropertyValue(const std::string& propertyName, std::string defaultValue)
+{
+    std::string retValue = defaultValue;
+
+    std::map<std::string, std::string>::iterator itFound = m_propertyValueMap.find(propertyName);
+    if(itFound != m_propertyValueMap.end())
+    {
+        retValue = itFound->second;
+    }
+
+    return retValue;
+}
+
+void ScriptDataTag::addPropertyValue(const std::string& name, const std::string& value)
+{
+    m_propertyValueMap[name] = value;
+}
+
+void ScriptDataTag::encodeTagData(std::string& encodedData) const
+{
+
+}
+
+void ScriptDataTag::decodeTagData(const uint8_t* data, uint32_t dataSize)
+{
+    const uint8_t* readData = data;
+    uint32_t restSize = dataSize;
+
+    if(readData[0] != SCRIPT_STRING)
+        return;
+
+    int32_t nameLen = decodeScriptString(readData + 1, restSize - 1, m_scriptDataName);
+    if(nameLen == -1)
+        return;
+
+    readData += nameLen + 1;
+    restSize -= nameLen + 1;
+
+    m_propertyValueMap.clear();
+    decodeScriptProperty(readData, restSize, m_propertyValueMap);
+}
+
+int32_t ScriptDataTag::decodeScriptString(const uint8_t* data, uint32_t size, std::string& retString)
+{
+    uint16_t nameLength = ((data[0] << 8) & 0xFF00) | (data[1] & 0xFF);
+    if(nameLength > size - 2)
+        return -1;
+
+    retString.assign(data + 2, data + nameLength + 2);
+    return nameLength + 2;
+}
+
+int32_t ScriptDataTag::decodeScriptNumber(const uint8_t* data, uint32_t size, std::string& retString)
+{
+    if(data[0] != SCRIPT_NUMBER)
+        return -1;
+
+    double numVal = 0;
+    uint8_t bigEData[8] = { 0 };
+    //TODO ???????
+    bigEData[0] = data[8];
+    bigEData[1] = data[7];
+    bigEData[2] = data[6];
+    bigEData[3] = data[5];
+    bigEData[4] = data[4];
+    bigEData[5] = data[3];
+    bigEData[6] = data[2];
+    bigEData[7] = data[1];
+    memcpy(&numVal, bigEData, 8);
+    retString = std::to_string(numVal);
+
+    return 9;
+}
+
+int32_t ScriptDataTag::decodeScriptBoolean(const uint8_t* data, uint32_t size, std::string& retString)
+{
+    if(data[0] != SCRIPT_BOOLEAN)
+        return -1;
+
+    retString = std::to_string((data[1] > 0));
+
+    return 2;
+}
+
+int32_t ScriptDataTag::decodeScriptProperty(const uint8_t* data, uint32_t size, std::map<std::string, std::string>& properties)
+{
+    if(data[0] != SCRIPT_ARRAY)
+        return -1;
+
+    uint32_t arrayLen = 0;
+    arrayLen |= (data[1] << 24) & 0xFF000000;
+    arrayLen |= (data[2] << 16) & 0x00FF0000;
+    arrayLen |= (data[3] << 8) & 0x0000FF00;
+    arrayLen |= data[4] & 0x000000FF;
+
+    const uint8_t* arrOffset = data + 5;
+    uint32_t arrSize = size - 5;
+    for(int i = 0; i < arrayLen; i++)
+    {
+        std::string proName;
+        std::string proVal;
+        int32_t decSize = decodeScriptString(arrOffset, arrSize, proName);
+
+        if(decSize == -1)
+            return -1;
+
+        arrOffset += decSize;
+        arrSize -= decSize;
+
+        int32_t decValSize = 0;
+        switch(arrOffset[0])
+        {
+            case SCRIPT_NUMBER:
+            decValSize = decodeScriptNumber(arrOffset, arrSize, proVal);
+            break;
+            case SCRIPT_BOOLEAN:
+            decValSize = decodeScriptBoolean(arrOffset, arrSize, proVal);
+            break;
+            case SCRIPT_STRING:
+            decValSize = decodeScriptString(arrOffset, arrSize, proVal);
+            break;
+        }
+
+        if(decValSize == -1)
+            return -1;
+
+        arrOffset += decValSize;
+        arrSize -= decValSize;
+
+        m_propertyValueMap[proName] = proVal;
+    }
+
+    return size - arrSize;
 }
